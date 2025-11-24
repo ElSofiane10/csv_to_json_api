@@ -3,7 +3,18 @@ from converter import convert_csv_to_json
 import tempfile
 from pathlib import Path
 
-app = FastAPI(title="CSV to JSON Converter API")
+app = FastAPI(
+    title="CSV to JSON Converter API",
+    docs_url="/docs",          # on force les chemins
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
+)
+
+
+@app.get("/")
+async def root():
+    return {"status": "ok", "message": "CSV to JSON API is running"}
+
 
 @app.post("/convert")
 async def convert(file: UploadFile = File(...)):
