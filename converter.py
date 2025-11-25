@@ -1,142 +1,171 @@
+from __future__ import annotations
+
 import csv
 import json
+import tempfile
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Any
 
 
-def _detect_delimiter(sample: str) -> str:
-    """Detect CSV delimiter from a sample line."""
-    candidates = [",", ";", "\t", "|", ":"]
-    counts = {c: sample.count(c) for c in candidates}
-    # Choose the most frequent, default to comma
-    return max(counts, key=counts.get) or ","
+# ---------------------------------------------------------------------------
+# CSV -> JSON
+# ---------------------------------------------------------------------------
 
 
 def convert_csv_to_json(
-    input_path: str,
-    output_path: Optional[str] = None,
+    csv_path: str | Path,
     *,
+    delimiter: str = ",",
     encoding: str = "utf-8",
-    detect_delimiter: bool = True,
-    force_delimiter: Optional[str] = None,
-    skip_empty_lines: bool = True,
-) -> Path:
-    """Convert a CSV file to a JSON file with an array of objects.
-
-    Args:
-        input_path: Path to the CSV file.
-        output_path: Path to write the JSON file. If None, uses same name with .json.
-        encoding: File encoding to read.
-        detect_delimiter: If True, auto-detect delimiter from first non-empty line.
-        force_delimiter: If set, use this delimiter instead of detection.
-        skip_empty_lines: If True, ignore completely empty lines.
-
-    Returns:
-        Path to the written JSON file.
+    has_header: bool = True,
+    pretty: bool = False,
+) -> tuple[Path, int, str | None, list[dict[str, Any]]]:
     """
-    in_path = Path(input_path)
-    if output_path is None:
-        out_path = in_path.with_suffix(".json")
+    Convertit un fichier CSV en JSON.
+
+    - csv_path : chemin du fichier CSV
+    - delimiter : séparateur CSV
+    - encoding : encodage du CSV
+    - has_header : True si la première ligne contient les noms de colonnes
+    - pretty : True pour indenter le JSON
+
+    Retourne (json_path, rows_count, warning, data_list)
+    """
+    csv_path = Path(csv_path)
+
+    try:
+        f = csv_path.open("r", encoding=encoding, newline="")
+    except FileNotFoundError as e:
+        raise ValueError(f"Fichier CSV introuvable : {csv_path}") from e
+
+    with f:
+        reader = csv.reader(f, delimiter=delimiter)
+        rows = list(reader)
+
+    if not rows:
+        raise ValueError("Le fichier CSV est vide.")
+
+    warning: str | None = None
+    data: list[dict[str, Any]] = []
+
+    if has_header:
+        header = rows[0]
+        if not header:
+            raise ValueError("La ligne d'en-tête du CSV est vide.")
+
+        for idx, row in enumerate(rows[1:], start=2):
+            if len(row) != len(header):
+                warning = (
+                    "Certaines lignes n'ont pas le même nombre de colonnes que l'en-tête. "
+                    "Les valeurs manquantes sont complétées par des chaînes vides."
+                )
+            # Ajustement : tronquer ou compléter avec ""
+            row = (row + [""] * len(header))[: len(header)]
+            obj = {header[i]: row[i] for i in range(len(header))}
+            data.append(obj)
     else:
-        out_path = Path(output_path)
-
-    if not in_path.is_file():
-        raise FileNotFoundError(f"Input CSV not found: {in_path}")
-
-    # Read a small sample to detect delimiter if needed
-    delimiter = ","
-    if force_delimiter is not None:
-        delimiter = force_delimiter
-    elif detect_delimiter:
-        with in_path.open("r", encoding=encoding, newline="") as f:
-            for line in f:
-                if skip_empty_lines and not line.strip():
-                    continue
-                delimiter = _detect_delimiter(line)
-                break
-
-    rows = []
-    with in_path.open("r", encoding=encoding, newline="") as f:
-        reader = csv.DictReader(f, delimiter=delimiter)
-        for row in reader:
-            if skip_empty_lines and all(
-                (v is None or str(v).strip() == "") for v in row.values()
-            ):
-                continue
-            # Strip whitespace around values
-            cleaned = {k: (v.strip() if isinstance(v, str) else v) for k, v in row.items()}
-            rows.append(cleaned)
-
-    with out_path.open("w", encoding="utf-8") as out:
-        json.dump(rows, out, ensure_ascii=False, indent=2)
-
-    return out_path
-
-
-def batch_convert_csv_to_json(
-    input_paths: Sequence[str],
-    output_dir: Optional[str] = None,
-    *,
-    encoding: str = "utf-8",
-    detect_delimiter: bool = True,
-    force_delimiter: Optional[str] = None,
-    skip_empty_lines: bool = True,
-) -> list[Path]:
-    """Batch conversion helper for multiple CSV files."""
-    results: list[Path] = []
-    for path in input_paths:
-        in_path = Path(path)
-        if output_dir is None:
-            out_path = None
-        else:
-            out_dir = Path(output_dir)
-            out_dir.mkdir(parents=True, exist_ok=True)
-            out_path = out_dir / (in_path.stem + ".json")
-        result = convert_csv_to_json(
-            str(in_path),
-            str(out_path) if out_path is not None else None,
-            encoding=encoding,
-            detect_delimiter=detect_delimiter,
-            force_delimiter=force_delimiter,
-            skip_empty_lines=skip_empty_lines,
+        # Pas d'en-tête : on crée des noms de colonnes génériques
+        max_len = max(len(r) for r in rows)
+        header = [f"col_{i+1}" for i in range(max_len)]
+        warning = (
+            "CSV sans en-tête : des noms de colonnes génériques col_1, col_2, ... ont été utilisés."
         )
-        results.append(result)
-    return results
+        for idx, row in enumerate(rows, start=1):
+            row = (row + [""] * max_len)[:max_len]
+            obj = {header[i]: row[i] for i in range(max_len)}
+            data.append(obj)
+
+    rows_count = len(data)
+
+    # Écriture dans un fichier JSON temporaire
+    tmp = tempfile.NamedTemporaryFile(
+        delete=False, suffix=".json", mode="w", encoding="utf-8"
+    )
+    if pretty:
+        json.dump(data, tmp, ensure_ascii=False, indent=2)
+    else:
+        json.dump(data, tmp, ensure_ascii=False, separators=(",", ":"))
+    tmp.close()
+
+    return Path(tmp.name), rows_count, warning, data
 
 
-if __name__ == "__main__":
-    import argparse
+# ---------------------------------------------------------------------------
+# JSON -> CSV
+# ---------------------------------------------------------------------------
 
-    parser = argparse.ArgumentParser(
-        description="Convert a CSV file to JSON (array of objects)."
-    )
-    parser.add_argument("input", help="Path to the input CSV file.")
-    parser.add_argument(
-        "-o",
-        "--output",
-        help="Path to the output JSON file. Defaults to same name with .json.",
-    )
-    parser.add_argument(
-        "--encoding",
-        default="utf-8",
-        help="Encoding of the CSV file (default: utf-8).",
-    )
-    parser.add_argument(
-        "--delimiter",
-        help="Force a specific delimiter (e.g. ',' ';' '\\t'). If not set, auto-detect.",
-    )
-    parser.add_argument(
-        "--no-detect-delimiter",
-        action="store_true",
-        help="Disable delimiter auto-detection.",
-    )
-    args = parser.parse_args()
 
-    out_path = convert_csv_to_json(
-        args.input,
-        args.output,
-        encoding=args.encoding,
-        detect_delimiter=not args.no_detect_delimiter,
-        force_delimiter=args.delimiter,
+def convert_json_to_csv(
+    json_text: str,
+    *,
+    delimiter: str = ",",
+    has_header: bool = True,
+) -> tuple[Path, int, str | None]:
+    """
+    Convertit une liste JSON en CSV.
+
+    - json_text doit représenter soit :
+        * une liste d'objets : [{...}, {...}]
+        * une liste de listes  : [[...], [...]]
+    - delimiter : séparateur CSV ("," par défaut)
+    - has_header : si True et liste d'objets -> écrit une ligne d'en-tête
+
+    Retourne : (chemin_fichier_csv, rows_count, warning)
+    """
+    try:
+        data = json.loads(json_text)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"JSON invalide : {e}") from e
+
+    if not isinstance(data, list) or len(data) == 0:
+        raise ValueError("Le JSON doit être une liste non vide (d'objets ou de tableaux).")
+
+    warning: str | None = None
+    rows_count = 0
+
+    tmp = tempfile.NamedTemporaryFile(
+        delete=False, suffix=".csv", mode="w", newline="", encoding="utf-8"
     )
-    print(f"Written: {out_path}")
+    writer = csv.writer(tmp, delimiter=delimiter)
+
+    first = data[0]
+
+    # Cas 1 : liste d'objets
+    if isinstance(first, dict):
+        # union de toutes les clés dans l'ordre d'apparition
+        keys: list[str] = []
+        seen = set()
+        for obj in data:
+            if not isinstance(obj, dict):
+                raise ValueError("Tous les éléments doivent être des objets JSON (dict).")
+            for k in obj.keys():
+                if k not in seen:
+                    seen.add(k)
+                    keys.append(k)
+
+        if has_header:
+            writer.writerow(keys)
+
+        for obj in data:
+            row = [obj.get(k, "") for k in keys]
+            writer.writerow(row)
+            rows_count += 1
+
+    # Cas 2 : liste de listes / tuples
+    elif isinstance(first, (list, tuple)):
+        if has_header:
+            warning = "has_header=true est ignoré pour une liste de tableaux."
+        for row in data:
+            if not isinstance(row, (list, tuple)):
+                raise ValueError(
+                    "Tous les éléments doivent être des tableaux si le premier est un tableau."
+                )
+            writer.writerow(list(row))
+            rows_count += 1
+    else:
+        raise ValueError(
+            "Le JSON doit être une liste d'objets ({...}) ou une liste de tableaux ([...])."
+        )
+
+    tmp.close()
+    return Path(tmp.name), rows_count, warning
