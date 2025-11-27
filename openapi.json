@@ -1,0 +1,238 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "DataFormat Hub – Multi-Format Converter API",
+    "version": "1.0.0",
+    "description": "API de conversion multi-formats : CSV ⇄ JSON ⇄ Excel ⇄ XML ⇄ HTML."
+  },
+  "paths": {
+    "/": {
+      "get": {
+        "summary": "Root",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/csv/to-json": {
+      "post": {
+        "summary": "Convertir un CSV en JSON",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": { "type": "string", "format": "binary" },
+                  "delimiter": { "type": "string" },
+                  "encoding": { "type": "string" },
+                  "has_header": { "type": "boolean" },
+                  "pretty": { "type": "boolean" }
+                },
+                "required": ["file"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Conversion réussie" },
+          "400": { "description": "Erreur de format" }
+        }
+      }
+    },
+    "/json/to-csv": {
+      "post": {
+        "summary": "Convertir un JSON en CSV",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": { "type": "string", "format": "binary" },
+                  "delimiter": { "type": "string" },
+                  "encoding": { "type": "string" },
+                  "has_header": { "type": "boolean" }
+                },
+                "required": ["file"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "OK" },
+          "400": { "description": "Erreur" }
+        }
+      }
+    },
+    "/csv/to-excel": {
+      "post": {
+        "summary": "CSV → Excel (.xlsx)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": { "type": "string", "format": "binary" },
+                  "delimiter": { "type": "string" },
+                  "encoding": { "type": "string" },
+                  "has_header": { "type": "boolean" }
+                },
+                "required": ["file"]
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/excel/to-csv": {
+      "post": {
+        "summary": "Excel (.xlsx) → CSV",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": { "type": "string", "format": "binary" }
+                },
+                "required": ["file"]
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/json/format": {
+      "post": {
+        "summary": "Formatter / compacter / valider un JSON",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": { "type": "string", "format": "binary" },
+                  "mode": { "type": "string" },
+                  "validate": { "type": "boolean" }
+                },
+                "required": ["file"]
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/xml/to-json": {
+      "post": {
+        "summary": "XML → JSON",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": { "type": "string", "format": "binary" }
+                },
+                "required": ["file"]
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/json/to-xml": {
+      "post": {
+        "summary": "JSON → XML",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": { "type": "string", "format": "binary" }
+                },
+                "required": ["file"]
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/html-table/to-json": {
+      "post": {
+        "summary": "Table HTML → JSON",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": { "type": "string", "format": "binary" }
+                },
+                "required": ["file"]
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/csv/url-to-json": {
+      "post": {
+        "summary": "Télécharger un CSV depuis URL → JSON",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "url": { "type": "string" }
+                },
+                "required": ["url"]
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/text/clean": {
+      "post": {
+        "summary": "Nettoyer un texte",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "text": { "type": "string" }
+                },
+                "required": ["text"]
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "OK" } }
+      }
+    }
+  }
+}
